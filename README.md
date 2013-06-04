@@ -1,0 +1,1 @@
+Cannonball is a Web application that demonstrates using [Jellyfish](https://github.com/Versal/jellyfish) for dependency injection.  It is named for the delicious [Cannonball Jellyfish](https://en.wikipedia.org/wiki/Cannonball_jellyfish).
