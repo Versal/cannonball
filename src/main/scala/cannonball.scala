@@ -155,11 +155,11 @@ class CannonballServlet extends HttpServlet {
   def pretty(nodes: NodeSeq): String = 
     prettyPrinter.formatNodes(nodes)
 
-  def run(p: Program): Any = p match {
+  def run[A](p: Program[A]): A = p match {
     case Return(a)  => a
     case With(c, f) =>
       val dependency: Any = dependencies(c)
-      val nextProgram: Program = f(dependency)
+      val nextProgram: Program[A] = f(dependency)
       run(nextProgram)
   }
 
@@ -167,16 +167,16 @@ class CannonballServlet extends HttpServlet {
     Option(req.getParameter("content")) match {
       case None => res.sendError(400, "missing content")
       case Some(content) =>
-        val program: Program = Programs.addEntry(content)
-        val entry: Entry = run(program).asInstanceOf[Entry]
+        val program: Program[Entry] = Programs.addEntry(content)
+        val entry: Entry = run(program)
         val view: NodeSeq = Views.entry(entry)
         res.getWriter.write(pretty(view))
     } 
   }
 
   override def doGet(req: HttpServletRequest, res: HttpServletResponse) {
-    val program: Program = Programs.getEntries(0, 20)
-    val entries: Seq[Entry] = run(program).asInstanceOf[Seq[Entry]]
+    val program: Program[Seq[Entry]] = Programs.getEntries(0, 20)
+    val entries: Seq[Entry] = run(program)
     val view: NodeSeq = Views.entries(entries)
     res.getWriter.write(pretty(view))
   }
