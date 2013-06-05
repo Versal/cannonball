@@ -109,9 +109,7 @@ object Programs {
 
 object Views {
 
-  import scala.xml.{NodeSeq, PrettyPrinter}
-
-  lazy val printer = new PrettyPrinter(160, 2)
+  import scala.xml.NodeSeq
 
   def entry(entry: Entry): NodeSeq =
     <html>
@@ -139,36 +137,48 @@ object Views {
   def toXml(entry: Entry): NodeSeq =
     <div>{entry.content} @ {entry.created}</div>
 
-  def pretty(nodes: NodeSeq): String = 
-    printer.formatNodes(nodes)
 }
 
 import javax.servlet.http.HttpServlet
 
 class CannonballServlet extends HttpServlet {
 
+  import scala.xml.{NodeSeq, PrettyPrinter}
   import javax.servlet.http.{HttpServletRequest, HttpServletResponse}
 
-  val dbConnector = new HsqlConnector
-  val idGenerator = new UuidGenerator
+  val dependencies: Map[Class[_], Any] =
+    Map(classOf[DbConnector] -> new HsqlConnector,
+        classOf[IdGenerator] -> new UuidGenerator)
 
-  def run[A](p: Program): Any = p match {
-    case Return(a) => a
-    case With(c, f) if c.isA[DbConnector] => run(f(dbConnector))
-    case With(c, f) if c.isA[IdGenerator] => run(f(idGenerator))
+  val prettyPrinter = new PrettyPrinter(160, 2)
+
+  def pretty(nodes: NodeSeq): String = 
+    prettyPrinter.formatNodes(nodes)
+
+  def run(p: Program): Any = p match {
+    case Return(a)  => a
+    case With(c, f) =>
+      val dependency: Any = dependencies(c)
+      val nextProgram: Program = f(dependency)
+      run(nextProgram)
   }
 
   override def doPost(req: HttpServletRequest, res: HttpServletResponse) {
     Option(req.getParameter("content")) match {
-      case Some(content) => val entry: Entry = run(Programs.addEntry(content)).asInstanceOf[Entry]
-                            res.getWriter.write(Views.pretty(Views.entry(entry)))
-      case None          => res.sendError(400, "missing content")
+      case None => res.sendError(400, "missing content")
+      case Some(content) =>
+        val program: Program = Programs.addEntry(content)
+        val entry: Entry = run(program).asInstanceOf[Entry]
+        val view: NodeSeq = Views.entry(entry)
+        res.getWriter.write(pretty(view))
     } 
   }
 
   override def doGet(req: HttpServletRequest, res: HttpServletResponse) {
-    val entries: Seq[Entry] = run(Programs.getEntries(0, 20)).asInstanceOf[Seq[Entry]]
-    res.getWriter.write(Views.pretty(Views.entries(entries)))
+    val program: Program = Programs.getEntries(0, 20)
+    val entries: Seq[Entry] = run(program).asInstanceOf[Seq[Entry]]
+    val view: NodeSeq = Views.entries(entries)
+    res.getWriter.write(pretty(view))
   }
 
 }
